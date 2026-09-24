@@ -1,5 +1,5 @@
 name: 'LLM API Health Check'
-description: 'Check availability, latency and model identity of any OpenAI-compatible LLM endpoint on a schedule. Writes a job summary, a shields.io badge and a history file.'
+description: 'Check availability, latency and model identity of any OpenAI-compatible LLM endpoint, with a job summary and badge.'
 author: 'APIMaster.ai'
 
 branding:
