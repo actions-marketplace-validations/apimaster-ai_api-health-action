@@ -1,0 +1,27 @@
+# Block a deploy when the LLM endpoint is unhealthy.
+name: deploy
+
+on:
+  workflow_dispatch:
+
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    outputs:
+      status: ${{ steps.health.outputs.status }}
+    steps:
+      - uses: apimaster-ai/api-health-action@v1
+        id: health
+        with:
+          api-key: ${{ secrets.LLM_API_KEY }}
+          models: ${{ vars.PRODUCTION_MODEL }}
+          checks: availability,latency,identity
+          latency-threshold-ms: 3000
+          fail-on: degraded
+
+  deploy:
+    needs: preflight
+    if: needs.preflight.outputs.status == 'ok'
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "endpoint healthy, deploying"

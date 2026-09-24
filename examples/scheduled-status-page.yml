@@ -1,0 +1,63 @@
+# Copy this into .github/workflows/ of your own repo.
+#
+# Every 30 minutes: check the endpoint, append to a history file, regenerate a
+# status page, and publish it to GitHub Pages. The badge JSON is written too, so
+# your README can show live status.
+name: llm-api-status
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: llm-api-status
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: status-data      # keep history on a data branch, not main
+          fetch-depth: 1
+
+      - uses: apimaster-ai/api-health-action@v1
+        id: health
+        with:
+          api-key: ${{ secrets.LLM_API_KEY }}
+          base-url: https://apimaster.ai/v1
+          models: |
+            gpt-5.5
+            claude-sonnet-4-6
+            glm-5.3-flash
+          checks: availability,latency,identity
+          latency-threshold-ms: 4000
+          runs-per-model: 3
+          badge-file: public/badge.json
+          history-file: public/history.jsonl
+          json-file: public/latest.json
+          fail-on: never        # a scheduled monitor should record, not fail
+
+      - name: Render the status page
+        run: |
+          curl -sSL -o render-status.js \
+            https://raw.githubusercontent.com/apimaster-ai/api-health-action/v1/examples/render-status.js
+          node render-status.js public/history.jsonl --title "LLM API status" > public/index.html
+
+      - name: Commit the new sample
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public
+          git commit -m "status: ${{ steps.health.outputs.status }} (${{ steps.health.outputs.p50 }} ms)" || exit 0
+          git push
+
+      - uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: public

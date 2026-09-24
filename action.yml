@@ -1,0 +1,98 @@
+name: 'LLM API Health Check'
+description: 'Check availability, latency and model identity of any OpenAI-compatible LLM endpoint on a schedule. Writes a job summary, a shields.io badge and a history file.'
+author: 'APIMaster.ai'
+
+branding:
+  icon: 'activity'
+  color: 'purple'
+
+inputs:
+  api-key:
+    description: 'API key for the endpoint. Always pass this from a secret.'
+    required: true
+  base-url:
+    description: 'OpenAI-compatible base URL, including /v1'
+    required: false
+    default: 'https://apimaster.ai/v1'
+  models:
+    description: 'Comma- or newline-separated model ids to check. Leave empty to check only the model list endpoint.'
+    required: false
+    default: ''
+  checks:
+    description: 'Comma-separated subset of: availability, latency, identity'
+    required: false
+    default: 'availability,latency'
+  latency-threshold-ms:
+    description: 'Fail (or warn) when time-to-first-token exceeds this'
+    required: false
+    default: '5000'
+  runs-per-model:
+    description: 'How many requests per model, for a stable p50'
+    required: false
+    default: '2'
+  max-tokens:
+    description: 'max_tokens per probe request. Do not go below ~128: reasoning models spend the budget before emitting text, and an empty reply looks like a broken model.'
+    required: false
+    default: '256'
+  fail-on:
+    description: 'error = fail only on unreachable/auth errors; degraded = also fail on latency or identity problems; never = always succeed'
+    required: false
+    default: 'error'
+  summary:
+    description: 'Write a table to the GitHub job summary'
+    required: false
+    default: 'true'
+  badge-file:
+    description: 'Path to write a shields.io endpoint JSON file. Empty to skip.'
+    required: false
+    default: ''
+  history-file:
+    description: 'Path to append one JSON line per run. Empty to skip.'
+    required: false
+    default: ''
+  json-file:
+    description: 'Path to write the full result JSON. Empty to skip.'
+    required: false
+    default: ''
+  timeout-ms:
+    description: 'Per-request timeout'
+    required: false
+    default: '60000'
+
+outputs:
+  status:
+    description: 'ok | degraded | down'
+    value: ${{ steps.run.outputs.status }}
+  results:
+    description: 'Full result payload as JSON'
+    value: ${{ steps.run.outputs.results }}
+  p50:
+    description: 'Median time-to-first-token across all successful probes, in ms'
+    value: ${{ steps.run.outputs.p50 }}
+  failures:
+    description: 'Number of failed probes'
+    value: ${{ steps.run.outputs.failures }}
+  models-available:
+    description: 'Number of models the endpoint listed'
+    value: ${{ steps.run.outputs.models-available }}
+
+runs:
+  using: 'composite'
+  steps:
+    - id: run
+      shell: bash
+      run: node "$GITHUB_ACTION_PATH/src/index.js"
+      env:
+        INPUT_API_KEY: ${{ inputs.api-key }}
+        INPUT_BASE_URL: ${{ inputs.base-url }}
+        INPUT_MODELS: ${{ inputs.models }}
+        INPUT_CHECKS: ${{ inputs.checks }}
+        INPUT_LATENCY_THRESHOLD_MS: ${{ inputs.latency-threshold-ms }}
+        INPUT_RUNS_PER_MODEL: ${{ inputs.runs-per-model }}
+        INPUT_MAX_TOKENS: ${{ inputs.max-tokens }}
+        INPUT_FAIL_ON: ${{ inputs.fail-on }}
+        INPUT_SUMMARY: ${{ inputs.summary }}
+        INPUT_BADGE_FILE: ${{ inputs.badge-file }}
+        INPUT_HISTORY_FILE: ${{ inputs.history-file }}
+        INPUT_JSON_FILE: ${{ inputs.json-file }}
+        INPUT_TIMEOUT_MS: ${{ inputs.timeout-ms }}
