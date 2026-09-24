@@ -3,6 +3,7 @@ name: self-test
 on:
   push:
   pull_request:
+  workflow_dispatch:
 
 jobs:
   mock:
@@ -42,3 +43,28 @@ jobs:
           printf '%s\n' '{"t":"2026-01-01T00:00:00Z","status":"ok","p50":300,"models":{"gpt-5.5":{"ok":true,"ttft":300,"issues":0}}}' > h.jsonl
           node examples/render-status.js h.jsonl > index.html
           grep -q "All systems operational" index.html
+
+  # What users run: the published tag, resolved by GitHub, not the checkout.
+  published:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Start the mock endpoint
+        run: |
+          node test/mock-server.js 8787 ok &
+          for i in $(seq 1 20); do curl -sf http://127.0.0.1:8787/v1/models >/dev/null && break; sleep 0.25; done
+
+      - name: Run the published v1 against the mock
+        id: health
+        uses: apimaster-ai/api-health-action@v1
+        with:
+          api-key: mock-key
+          base-url: http://127.0.0.1:8787/v1
+          models: gpt-5.5
+          fail-on: never
+
+      - name: Assert it reported ok
+        run: |
+          echo "status=${{ steps.health.outputs.status }}"
+          [ "${{ steps.health.outputs.status }}" = "ok" ]
